@@ -21,29 +21,29 @@ This document outlines the plan for building a Flutter web application that serv
                               │
                     ┌─────────▼──────────┐
                     │  Backend Service   │
-                    │  (Git Operations)  │
+                    │ (Git + Hugo Build) │
                     └─────────┬──────────┘
                               │
         ┌─────────────────────┼─────────────────────┐
         │                     │                     │
    ┌────▼────┐         ┌──────▼──────┐      ┌──────▼──────┐
-   │  Hugo   │         │  Git Repo   │      │   CI/CD     │
-   │ Content │         │  (GitHub)   │      │  (Actions)  │
+   │  Hugo   │         │  Git Repo   │      │   Rsync     │
+   │ Content │         │  (Gitea)    │      │  Deploy     │
    └─────────┘         └─────────────┘      └──────┬──────┘
                                                     │
                                              ┌──────▼──────┐
-                                             │  Deployed   │
-                                             │   Site      │
+                                             │   kahuna    │
+                                             │   Server    │
                                              └─────────────┘
 ```
 
 ### Key Components
 
 1. **Flutter Web Frontend**: User interface with WYSIWYG editing capabilities
-2. **Backend API Service**: Handles file operations, Git operations, Hugo builds
-3. **Git Repository**: Stores Hugo content and configuration
-4. **CI/CD Pipeline**: Automates Hugo builds and deployment
-5. **Hosting Platform**: Serves the generated static site (Netlify, Vercel, GitHub Pages)
+2. **Backend API Service**: Handles file operations, Git operations, Hugo builds, and rsync deployment
+3. **Git Repository (Gitea)**: Self-hosted Git server storing Hugo content and configuration
+4. **Deployment System**: Hugo build + rsync to remote server
+5. **Hosting Server (kahuna)**: Self-hosted server serving the static site
 
 ---
 
@@ -72,21 +72,19 @@ This document outlines the plan for building a Flutter web application that serv
 - **Git Operations**: `simple-git` npm package
 - **File System**: Node.js fs module
 
-**Option C: Serverless Functions**
-- Netlify Functions or Vercel Edge Functions
-- GitHub API for Git operations
-
 ### Hugo Site
 - **Hugo Version**: Latest stable (0.120+)
 - **Content Format**: Markdown with YAML frontmatter
 - **Theme**: Configurable (user can choose)
 - **Configuration**: YAML or TOML
 
-### Deployment & CI/CD
-- **Version Control**: GitHub
-- **CI/CD**: GitHub Actions
-- **Hosting**: Netlify, Vercel, or GitHub Pages
-- **Build Trigger**: Webhook on content changes
+### Deployment & Infrastructure
+- **Version Control**: Self-hosted Gitea
+- **Build System**: Hugo CLI (executed by backend service)
+- **Deployment Method**: Rsync over SSH
+- **Hosting**: Self-hosted server (kahuna)
+- **Build Trigger**: API call from CMS or Git webhook
+- **SSH Authentication**: SSH keys for passwordless rsync
 
 ---
 
@@ -160,12 +158,12 @@ hcms/
 │   ├── static/
 │   │   └── images/
 │   ├── layouts/
-│   └── archetypes/
+│   ├── archetypes/
+│   └── deploy.sh                # Rsync deployment script
 │
-├── .github/
-│   └── workflows/
-│       ├── deploy-hugo.yml      # Hugo build & deploy
-│       └── deploy-cms.yml       # CMS deployment
+├── scripts/
+│   ├── build-and-deploy.sh      # Hugo build + rsync deployment
+│   └── setup-ssh-keys.sh        # SSH key configuration helper
 │
 ├── docker-compose.yml           # Local development setup
 ├── .gitignore
@@ -347,45 +345,96 @@ class GitService {
 
 #### **Automated Deployment**
 - Trigger Hugo build on content save
-- GitHub Actions workflow
-- Deploy to Netlify/Vercel/GitHub Pages
+- Backend service executes build and deployment
+- Deploy via rsync to self-hosted server
 - Display build status and logs
 
-**GitHub Actions Workflow:**
-```yaml
-name: Deploy Hugo Site
+**Deployment Script (deploy.sh):**
+```bash
+#!/bin/sh
+# Hugo build and rsync deployment script
 
-on:
-  push:
-    branches: [main]
-    paths:
-      - 'hugo_site/**'
+USER=erik
+HOST=kahuna
+DIR=Server/websites/smltags_com/public/
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
+# Navigate to Hugo site directory
+cd "$(dirname "$0")"
 
-      - name: Setup Hugo
-        uses: peaceiris/actions-hugo@v2
-        with:
-          hugo-version: 'latest'
-          extended: true
+# Build the Hugo site
+echo "Building Hugo site..."
+hugo --minify
 
-      - name: Build
-        run: cd hugo_site && hugo --minify
+if [ $? -ne 0 ]; then
+    echo "Hugo build failed!"
+    exit 1
+fi
 
-      - name: Deploy to Netlify
-        uses: nwtgck/actions-netlify@v2
-        with:
-          publish-dir: './hugo_site/public'
-          production-branch: main
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+# Deploy via rsync
+echo "Deploying to ${USER}@${HOST}..."
+rsync -avz --delete public/ ${USER}@${HOST}:~/${DIR}
+
+if [ $? -eq 0 ]; then
+    echo "Deployment successful!"
+    exit 0
+else
+    echo "Deployment failed!"
+    exit 1
+fi
+```
+
+**Backend Deployment Service:**
+```dart
+class DeploymentService {
+  final String hugoSitePath;
+  final String deployScriptPath;
+
+  Future<DeploymentResult> deploy() async {
+    try {
+      // Execute deployment script
+      final result = await Process.run(
+        'bash',
+        [deployScriptPath],
+        workingDirectory: hugoSitePath,
+      );
+
+      // Capture output
+      final output = result.stdout.toString();
+      final errors = result.stderr.toString();
+
+      // Return result
+      return DeploymentResult(
+        success: result.exitCode == 0,
+        output: output,
+        errors: errors,
+        timestamp: DateTime.now(),
+      );
+    } catch (e) {
+      return DeploymentResult(
+        success: false,
+        errors: e.toString(),
+        timestamp: DateTime.now(),
+      );
+    }
+  }
+
+  // Stream deployment logs in real-time
+  Stream<String> deployWithLogs() async* {
+    final process = await Process.start(
+      'bash',
+      [deployScriptPath],
+      workingDirectory: hugoSitePath,
+    );
+
+    yield* process.stdout
+        .transform(utf8.decoder)
+        .transform(const LineSplitter());
+
+    yield* process.stderr
+        .transform(utf8.decoder)
+        .transform(const LineSplitter());
+  }
+}
 ```
 
 **Frontend Status Display:**
@@ -599,16 +648,18 @@ Response 201:
 ### Phase 6: Deployment (Weeks 9-10)
 **Goal:** Automate Hugo builds and deployment
 
-- [ ] Create GitHub Actions workflow
-- [ ] Implement deployment trigger API
-- [ ] Build deployment status UI
-- [ ] Add build logs viewer
-- [ ] Set up Netlify/Vercel integration
+- [ ] Create deployment script (hugo + rsync)
+- [ ] Set up SSH keys for passwordless deployment
+- [ ] Implement deployment trigger API in backend
+- [ ] Build deployment status UI with live logs
+- [ ] Add deployment history tracking
+- [ ] Test deployment to kahuna server
 
 **Deliverables:**
-- Automated deployment pipeline
-- Deployment dashboard
+- Automated deployment pipeline with rsync
+- Deployment dashboard with real-time logs
 - Build status monitoring
+- SSH key configuration documentation
 
 ### Phase 7: Polish & Testing (Weeks 11-12)
 **Goal:** Refine UI/UX and ensure quality
@@ -720,19 +771,21 @@ Response 201:
 ### Infrastructure
 - **Development:**
   - Local development machines
-  - Git repository (GitHub)
+  - Self-hosted Gitea server (already in place)
 
 - **Production:**
-  - Backend hosting (DigitalOcean, AWS, or similar) - ~$10-20/month
-  - Hugo site hosting (Netlify free tier or Vercel)
-  - Domain name - ~$10-15/year
+  - Backend hosting (can run on same server as Gitea or separate)
+  - Hugo site hosting (kahuna server - already in place)
+  - SSH access between backend and kahuna server
+  - Optional: Reverse proxy (nginx/caddy) for CMS web interface
 
 ### Tools & Services
 - Flutter SDK (free)
 - Hugo (free)
-- GitHub (free for public repos, $4-7/user for private)
-- Netlify/Vercel (free tier sufficient for most use cases)
-- CI/CD (GitHub Actions - free tier)
+- Gitea (free, self-hosted)
+- Rsync (included with most Linux distributions)
+- SSH (included with most Linux distributions)
+- No external CI/CD costs (self-hosted deployment)
 
 ---
 
@@ -760,9 +813,9 @@ Response 201:
 
 ### Initial Setup Steps
 
-1. **Clone Repository**
+1. **Clone Repository from Gitea**
    ```bash
-   git clone <repo-url>
+   git clone <gitea-repo-url>
    cd hcms
    ```
 
@@ -770,7 +823,9 @@ Response 201:
    ```bash
    hugo new site hugo_site
    cd hugo_site
+   # Add theme (if using git submodule)
    git submodule add <theme-repo> themes/<theme-name>
+   # Or copy theme directly to themes/ directory
    ```
 
 3. **Set Up Flutter App**
@@ -786,12 +841,39 @@ Response 201:
    dart pub add shelf shelf_router
    ```
 
-5. **Configure Environment**
-   - Create `.env` file with configuration
-   - Set up GitHub repository
-   - Configure deployment tokens
+5. **Configure SSH Keys for Deployment**
+   ```bash
+   # Generate SSH key for deployment (if not already exists)
+   ssh-keygen -t ed25519 -C "cms-deployment"
 
-6. **Run Development Environment**
+   # Copy public key to kahuna server
+   ssh-copy-id erik@kahuna
+
+   # Test SSH connection
+   ssh erik@kahuna
+   ```
+
+6. **Configure Environment**
+   - Create `.env` file with configuration:
+     ```env
+     GITEA_URL=<your-gitea-url>
+     HUGO_SITE_PATH=./hugo_site
+     DEPLOY_USER=erik
+     DEPLOY_HOST=kahuna
+     DEPLOY_PATH=Server/websites/smltags_com/public/
+     ```
+   - Set up Gitea repository webhook (optional)
+   - Configure backend server authentication
+
+7. **Create Deployment Script**
+   ```bash
+   cp scripts/deploy.sh hugo_site/
+   chmod +x hugo_site/deploy.sh
+   # Test deployment
+   cd hugo_site && ./deploy.sh
+   ```
+
+8. **Run Development Environment**
    ```bash
    docker-compose up
    ```
@@ -812,7 +894,235 @@ With proper execution, this project can deliver a powerful yet simple content ma
 
 ---
 
-## Appendix A: Technology Alternatives Considered
+## Appendix A: Self-Hosted Deployment Architecture
+
+### Deployment Flow Options
+
+#### Option 1: Direct Backend Deployment (Recommended)
+```
+User clicks "Publish" → Flutter CMS → Backend API → Execute deploy.sh → Hugo Build → Rsync to kahuna
+```
+
+**Advantages:**
+- Simple, direct control
+- Real-time feedback to user
+- No additional infrastructure needed
+- Easy to debug and monitor
+
+**Implementation:**
+- Backend service has SSH keys configured
+- Deploy endpoint triggers the deployment script
+- Streams logs back to frontend in real-time
+
+#### Option 2: Git Push + Gitea Webhook
+```
+User clicks "Publish" → Flutter CMS → Git Commit + Push → Gitea Webhook → Trigger deployment service → Hugo Build → Rsync to kahuna
+```
+
+**Advantages:**
+- Decoupled from CMS
+- Can be triggered by any git push
+- More "GitOps" style workflow
+
+**Disadvantages:**
+- Requires webhook listener service
+- More complex setup
+- Delayed feedback to user
+
+**Implementation:**
+```dart
+// Gitea webhook handler
+@Route.post('/webhook/gitea')
+Future<Response> handleGiteaWebhook(Request request) async {
+  final payload = await request.readAsString();
+  final data = jsonDecode(payload);
+
+  // Verify webhook secret
+  if (!verifyWebhookSignature(request, payload)) {
+    return Response.forbidden('Invalid signature');
+  }
+
+  // Check if push to main branch
+  if (data['ref'] == 'refs/heads/main') {
+    // Trigger deployment
+    deploymentService.deploy();
+  }
+
+  return Response.ok('Webhook processed');
+}
+```
+
+### SSH Key Management
+
+**Setup for Backend Service:**
+
+1. Generate SSH key pair for the backend service:
+   ```bash
+   ssh-keygen -t ed25519 -f ~/.ssh/cms_deploy_key -C "cms-backend-deployment"
+   ```
+
+2. Add public key to kahuna server:
+   ```bash
+   ssh-copy-id -i ~/.ssh/cms_deploy_key.pub erik@kahuna
+   ```
+
+3. Configure SSH config for easy access:
+   ```bash
+   # ~/.ssh/config
+   Host kahuna
+       HostName kahuna
+       User erik
+       IdentityFile ~/.ssh/cms_deploy_key
+       StrictHostKeyChecking no
+   ```
+
+4. Test connection:
+   ```bash
+   ssh kahuna "echo 'Connection successful'"
+   ```
+
+### Security Considerations for Self-Hosted Setup
+
+1. **SSH Security:**
+   - Use ED25519 keys (more secure than RSA)
+   - Restrict SSH key to specific commands (optional):
+     ```bash
+     # On kahuna, in ~/.ssh/authorized_keys
+     command="rsync --server --daemon ." ssh-ed25519 AAAA... cms-backend
+     ```
+   - Use SSH agent forwarding carefully
+   - Regular key rotation
+
+2. **Backend Security:**
+   - Backend service should run with minimal privileges
+   - Use firewall rules to restrict access
+   - Implement rate limiting on deployment endpoint
+   - Require authentication for all CMS operations
+
+3. **Gitea Security:**
+   - Enable 2FA for Gitea users
+   - Use SSH keys for git operations
+   - Regular backups of Gitea data
+   - Keep Gitea updated
+
+### Deployment Monitoring
+
+**Enhanced Deployment Service with History:**
+
+```dart
+class DeploymentHistory {
+  final String id;
+  final DateTime timestamp;
+  final bool success;
+  final String output;
+  final String? error;
+  final String triggeredBy;
+  final int durationMs;
+
+  DeploymentHistory({
+    required this.id,
+    required this.timestamp,
+    required this.success,
+    required this.output,
+    this.error,
+    required this.triggeredBy,
+    required this.durationMs,
+  });
+}
+
+class EnhancedDeploymentService {
+  final List<DeploymentHistory> _history = [];
+
+  Future<DeploymentHistory> deployWithTracking(String userId) async {
+    final id = Uuid().v4();
+    final startTime = DateTime.now();
+
+    try {
+      final result = await deploy();
+      final endTime = DateTime.now();
+
+      final history = DeploymentHistory(
+        id: id,
+        timestamp: startTime,
+        success: result.success,
+        output: result.output,
+        error: result.errors,
+        triggeredBy: userId,
+        durationMs: endTime.difference(startTime).inMilliseconds,
+      );
+
+      _history.insert(0, history);
+      _saveToDatabase(history);
+
+      return history;
+    } catch (e) {
+      // Handle error
+      rethrow;
+    }
+  }
+
+  List<DeploymentHistory> getRecentDeployments({int limit = 20}) {
+    return _history.take(limit).toList();
+  }
+}
+```
+
+### Backup and Recovery
+
+**Pre-deployment Backup Strategy:**
+
+```bash
+#!/bin/sh
+# Enhanced deployment script with backup
+
+USER=erik
+HOST=kahuna
+DIR=Server/websites/smltags_com/public/
+BACKUP_DIR=Server/websites/smltags_com/backups/
+
+# Create backup of current site
+BACKUP_NAME="backup-$(date +%Y%m%d-%H%M%S)"
+ssh ${USER}@${HOST} "cd ~/${DIR} && tar -czf ~/${BACKUP_DIR}/${BACKUP_NAME}.tar.gz ."
+
+# Build Hugo site
+hugo --minify || exit 1
+
+# Deploy with rsync
+rsync -avz --delete public/ ${USER}@${HOST}:~/${DIR}
+
+# Verify deployment
+if [ $? -eq 0 ]; then
+    echo "Deployment successful!"
+    # Clean old backups (keep last 10)
+    ssh ${USER}@${HOST} "cd ~/${BACKUP_DIR} && ls -t | tail -n +11 | xargs rm -f"
+    exit 0
+else
+    echo "Deployment failed! Backup available at ${BACKUP_NAME}.tar.gz"
+    exit 1
+fi
+```
+
+### Performance Optimization
+
+**Incremental Deployments:**
+
+The `--delete` flag in rsync ensures removed files are deleted on the server, while rsync's delta-transfer algorithm only sends changed files, making deployments fast even for large sites.
+
+**Hugo Build Optimization:**
+
+```bash
+# Use parallel processing for faster builds
+hugo --minify --maxDeletes 100 --gc
+
+# For very large sites, consider:
+# - Using Hugo's page bundles
+# - Implementing partial rebuilds (only changed content)
+# - Caching builds
+```
+
+---
+
+## Appendix B: Technology Alternatives Considered
 
 ### Editor Alternatives
 - **Zefyr**: Simpler but less feature-rich than flutter_quill
@@ -825,18 +1135,21 @@ With proper execution, this project can deliver a powerful yet simple content ma
 - **Serverless only**: Lower cost but more complex architecture
 
 ### Deployment Platforms
+- **Rsync over SSH**: Simple, reliable, full control (Selected)
 - **Cloudflare Pages**: Excellent performance, generous free tier
 - **AWS Amplify**: More features but higher complexity
-- **Self-hosted**: Full control but more maintenance
+- **Git-based deployment**: Direct from Gitea webhooks
 
 ---
 
-## Appendix B: References & Resources
+## Appendix C: References & Resources
 
 ### Documentation
 - [Hugo Documentation](https://gohugo.io/documentation/)
 - [Flutter Web Documentation](https://docs.flutter.dev/platform-integration/web)
 - [flutter_quill Package](https://pub.dev/packages/flutter_quill)
+- [Gitea Documentation](https://docs.gitea.io/)
+- [Rsync Manual](https://linux.die.net/man/1/rsync)
 
 ### Example Projects
 - [flutter-hugo-cms](https://github.com/omaroued/flutter-hugo-cms) - Reference implementation
@@ -844,11 +1157,13 @@ With proper execution, this project can deliver a powerful yet simple content ma
 
 ### Tutorials
 - [Building a Markdown Editor in Flutter](https://medium.com/yavar/building-a-markdown-editor-in-flutter-a-step-by-step-guide-137b43fe6df5)
-- [Hugo Deployment with GitHub Actions](https://gohugo.io/hosting-and-deployment/hosting-on-github/)
+- [Hugo Deployment Methods](https://gohugo.io/hosting-and-deployment/)
+- [SSH Key-Based Authentication](https://www.ssh.com/academy/ssh/copy-id)
+- [Gitea Webhooks](https://docs.gitea.io/en-us/webhooks/)
 
 ---
 
-**Document Version:** 1.0
+**Document Version:** 1.1
 **Last Updated:** 2025-11-14
 **Author:** Claude (AI Assistant)
-**Status:** Draft for Review
+**Status:** Updated for Self-Hosted Infrastructure (Gitea + Rsync)
