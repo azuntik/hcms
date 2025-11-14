@@ -1,0 +1,11 @@
+{
+    "name": "Hugo CMS",
+    "short_name": "Hugo CMS",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#0175C2",
+    "theme_color": "#0175C2",
+    "description": "A Flutter web CMS frontend for Hugo static sites",
+    "orientation": "portrait-primary",
+    "prefer_related_applications": false
+}

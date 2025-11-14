@@ -1,0 +1,45 @@
+# Environment variables
+.env
+
+# Flutter
+flutter_cms/.dart_tool/
+flutter_cms/build/
+flutter_cms/.flutter-plugins
+flutter_cms/.flutter-plugins-dependencies
+flutter_cms/.packages
+flutter_cms/pubspec.lock
+
+# Dart/Backend
+backend/.dart_tool/
+backend/build/
+backend/.packages
+backend/pubspec.lock
+
+# Hugo
+hugo_site/public/
+hugo_site/resources/
+hugo_site/.hugo_build.lock
+
+# IDE
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# SSH keys
+*.pem
+*.key
+id_rsa*
+
+# Backup files
+*.backup
+*.bak

@@ -1,0 +1,55 @@
+baseURL: "https://example.com/"
+languageCode: "en-us"
+title: "My Hugo Site"
+theme: ""
+
+# Parameters
+params:
+  description: "A Hugo static site managed by Flutter CMS"
+  author: "Your Name"
+
+# Menu configuration
+menu:
+  main:
+    - name: "Home"
+      url: "/"
+      weight: 1
+    - name: "Posts"
+      url: "/posts/"
+      weight: 2
+    - name: "About"
+      url: "/about/"
+      weight: 3
+
+# Markup configuration
+markup:
+  goldmark:
+    renderer:
+      unsafe: true
+  highlight:
+    anchorLineNos: false
+    codeFences: true
+    guessSyntax: false
+    hl_Lines: ""
+    lineAnchors: ""
+    lineNoStart: 1
+    lineNos: false
+    lineNumbersInTable: true
+    noClasses: true
+    style: monokai
+    tabWidth: 4
+
+# Build configuration
+buildDrafts: false
+buildFuture: false
+buildExpired: false
+
+# Output formats
+outputs:
+  home: ["HTML", "RSS", "JSON"]
+  page: ["HTML"]
+  section: ["HTML", "RSS"]
+
+# Permalinks
+permalinks:
+  posts: "/:year/:month/:filename/"
