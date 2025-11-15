@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'services/api_service.dart';
+import 'providers/content_provider.dart';
+import 'screens/content_editor_page.dart';
+
 void main() {
   runApp(const HugoCmsApp());
 }
@@ -11,13 +15,23 @@ class HugoCmsApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'Hugo CMS',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
+    // Initialize API service
+    final apiService = ApiService(baseUrl: 'http://localhost:8080');
+
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(
+          create: (_) => ContentProvider(apiService),
+        ),
+      ],
+      child: MaterialApp.router(
+        title: 'Hugo CMS',
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+          useMaterial3: true,
+        ),
+        routerConfig: _router,
       ),
-      routerConfig: _router,
     );
   }
 }
@@ -34,7 +48,7 @@ final GoRouter _router = GoRouter(
         GoRoute(
           path: 'editor',
           builder: (BuildContext context, GoRouterState state) {
-            return const ContentEditorScreen();
+            return const ContentEditorPage();
           },
         ),
         GoRoute(
@@ -80,24 +94,29 @@ class DashboardScreen extends StatelessWidget {
               'Welcome to Hugo CMS',
               style: Theme.of(context).textTheme.headlineMedium,
             ),
+            const SizedBox(height: 8),
+            const Text('A modern CMS for Hugo static sites'),
             const SizedBox(height: 40),
             Wrap(
               spacing: 20,
               runSpacing: 20,
               children: [
                 _DashboardCard(
-                  title: 'New Post',
-                  icon: Icons.add,
+                  title: 'Content Editor',
+                  icon: Icons.edit_document,
+                  description: 'Edit and manage content',
                   onTap: () => context.go('/editor'),
                 ),
                 _DashboardCard(
                   title: 'Media Library',
                   icon: Icons.photo_library,
+                  description: 'Manage images and files',
                   onTap: () => context.go('/media'),
                 ),
                 _DashboardCard(
                   title: 'Settings',
                   icon: Icons.settings,
+                  description: 'Configure your site',
                   onTap: () => context.go('/settings'),
                 ),
               ],
@@ -112,11 +131,13 @@ class DashboardScreen extends StatelessWidget {
 // Dashboard Card Widget
 class _DashboardCard extends StatelessWidget {
   final String title;
+  final String description;
   final IconData icon;
   final VoidCallback onTap;
 
   const _DashboardCard({
     required this.title,
+    required this.description,
     required this.icon,
     required this.onTap,
   });
@@ -125,6 +146,7 @@ class _DashboardCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
       child: Card(
         elevation: 4,
         child: Container(
@@ -139,6 +161,13 @@ class _DashboardCard extends StatelessWidget {
               Text(
                 title,
                 style: Theme.of(context).textTheme.titleMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                description,
+                style: Theme.of(context).textTheme.bodySmall,
+                textAlign: TextAlign.center,
               ),
             ],
           ),
@@ -175,6 +204,14 @@ class AppDrawer extends StatelessWidget {
                     fontSize: 24,
                   ),
                 ),
+                SizedBox(height: 4),
+                Text(
+                  'Content Management System',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                  ),
+                ),
               ],
             ),
           ),
@@ -188,7 +225,7 @@ class AppDrawer extends StatelessWidget {
           ),
           ListTile(
             leading: const Icon(Icons.edit),
-            title: const Text('Editor'),
+            title: const Text('Content Editor'),
             onTap: () {
               context.go('/editor');
               Navigator.pop(context);
@@ -202,6 +239,7 @@ class AppDrawer extends StatelessWidget {
               Navigator.pop(context);
             },
           ),
+          const Divider(),
           ListTile(
             leading: const Icon(Icons.settings),
             title: const Text('Settings'),
@@ -217,23 +255,6 @@ class AppDrawer extends StatelessWidget {
 }
 
 // Placeholder screens
-class ContentEditorScreen extends StatelessWidget {
-  const ContentEditorScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Content Editor'),
-      ),
-      drawer: const AppDrawer(),
-      body: const Center(
-        child: Text('Content Editor - Coming Soon'),
-      ),
-    );
-  }
-}
-
 class MediaLibraryScreen extends StatelessWidget {
   const MediaLibraryScreen({super.key});
 
@@ -245,7 +266,14 @@ class MediaLibraryScreen extends StatelessWidget {
       ),
       drawer: const AppDrawer(),
       body: const Center(
-        child: Text('Media Library - Coming Soon'),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.photo_library, size: 64, color: Colors.grey),
+            SizedBox(height: 16),
+            Text('Media Library - Coming in Phase 4'),
+          ],
+        ),
       ),
     );
   }
@@ -261,8 +289,50 @@ class SettingsScreen extends StatelessWidget {
         title: const Text('Settings'),
       ),
       drawer: const AppDrawer(),
-      body: const Center(
-        child: Text('Settings - Coming Soon'),
+      body: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Hugo Site Settings',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 24),
+            const ListTile(
+              leading: Icon(Icons.public),
+              title: Text('Base URL'),
+              subtitle: Text('https://example.com'),
+            ),
+            const ListTile(
+              leading: Icon(Icons.language),
+              title: Text('Language'),
+              subtitle: Text('en-us'),
+            ),
+            const ListTile(
+              leading: Icon(Icons.color_lens),
+              title: Text('Theme'),
+              subtitle: Text('Not configured'),
+            ),
+            const Divider(),
+            const SizedBox(height: 16),
+            Text(
+              'Deployment',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 8),
+            const ListTile(
+              leading: Icon(Icons.server),
+              title: Text('Deploy Host'),
+              subtitle: Text('kahuna'),
+            ),
+            const ListTile(
+              leading: Icon(Icons.folder),
+              title: Text('Deploy Path'),
+              subtitle: Text('Server/websites/smltags_com/public/'),
+            ),
+          ],
+        ),
       ),
     );
   }
