@@ -6,6 +6,9 @@ import '../models/file_item.dart';
 import '../providers/content_provider.dart';
 import '../widgets/file_browser/file_list.dart';
 import '../widgets/editor/frontmatter_form.dart';
+import '../widgets/editor/wysiwyg_editor.dart';
+
+enum EditorMode { wysiwyg, markdown }
 
 class ContentEditorPage extends StatefulWidget {
   const ContentEditorPage({super.key});
@@ -21,6 +24,7 @@ class _ContentEditorPageState extends State<ContentEditorPage> {
   Map<String, dynamic> _frontmatter = {};
   bool _showPreview = false;
   bool _showFrontmatterForm = true;
+  EditorMode _editorMode = EditorMode.wysiwyg;
 
   @override
   void dispose() {
@@ -64,11 +68,17 @@ class _ContentEditorPageState extends State<ContentEditorPage> {
 
     if (success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Content saved successfully')),
+        const SnackBar(
+          content: Text('Content saved successfully'),
+          backgroundColor: Colors.green,
+        ),
       );
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save: ${provider.error}')),
+        SnackBar(
+          content: Text('Failed to save: ${provider.error}'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -96,11 +106,17 @@ class _ContentEditorPageState extends State<ContentEditorPage> {
 
     if (success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Content saved and committed')),
+        const SnackBar(
+          content: Text('Content saved and committed to Git'),
+          backgroundColor: Colors.green,
+        ),
       );
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${provider.error}')),
+        SnackBar(
+          content: Text('Error: ${provider.error}'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -111,15 +127,41 @@ class _ContentEditorPageState extends State<ContentEditorPage> {
       appBar: AppBar(
         title: const Text('Content Editor'),
         actions: [
+          // Editor mode toggle
+          SegmentedButton<EditorMode>(
+            segments: const [
+              ButtonSegment(
+                value: EditorMode.wysiwyg,
+                label: Text('WYSIWYG'),
+                icon: Icon(Icons.edit_note),
+              ),
+              ButtonSegment(
+                value: EditorMode.markdown,
+                label: Text('Markdown'),
+                icon: Icon(Icons.code),
+              ),
+            ],
+            selected: {_editorMode},
+            onSelectionChanged: (Set<EditorMode> selected) {
+              setState(() {
+                _editorMode = selected.first;
+              });
+            },
+          ),
+          const SizedBox(width: 16),
+
+          // Frontmatter toggle
           IconButton(
-            icon: Icon(_showFrontmatterForm ? Icons.code : Icons.article),
+            icon: Icon(_showFrontmatterForm ? Icons.visibility_off : Icons.visibility),
             onPressed: () {
               setState(() {
                 _showFrontmatterForm = !_showFrontmatterForm;
               });
             },
-            tooltip: _showFrontmatterForm ? 'Hide frontmatter' : 'Show frontmatter',
+            tooltip: _showFrontmatterForm ? 'Hide metadata' : 'Show metadata',
           ),
+
+          // Preview toggle
           IconButton(
             icon: Icon(_showPreview ? Icons.edit : Icons.preview),
             onPressed: () {
@@ -127,15 +169,19 @@ class _ContentEditorPageState extends State<ContentEditorPage> {
                 _showPreview = !_showPreview;
               });
             },
-            tooltip: _showPreview ? 'Edit mode' : 'Preview mode',
+            tooltip: _showPreview ? 'Hide preview' : 'Show preview',
           ),
           const SizedBox(width: 8),
+
+          // Save button
           ElevatedButton.icon(
             onPressed: _saveContent,
             icon: const Icon(Icons.save),
             label: const Text('Save'),
           ),
           const SizedBox(width: 8),
+
+          // Save & Commit button
           ElevatedButton.icon(
             onPressed: _saveAndCommit,
             icon: const Icon(Icons.cloud_upload),
@@ -170,7 +216,10 @@ class _ContentEditorPageState extends State<ContentEditorPage> {
                       children: [
                         Icon(Icons.edit_document, size: 64, color: Colors.grey),
                         SizedBox(height: 16),
-                        Text('Select a file to edit'),
+                        Text(
+                          'Select a file to edit',
+                          style: TextStyle(fontSize: 18, color: Colors.grey),
+                        ),
                       ],
                     ),
                   );
@@ -200,9 +249,14 @@ class _ContentEditorPageState extends State<ContentEditorPage> {
                       child: Row(
                         children: [
                           // Editor pane
-                          if (!_showPreview || !_showPreview)
+                          if (!_showPreview)
                             Expanded(
-                              child: _buildEditor(),
+                              child: _buildEditorPane(),
+                            )
+                          else
+                            Expanded(
+                              flex: _showPreview ? 1 : 2,
+                              child: _buildEditorPane(),
                             ),
 
                           // Preview pane
@@ -223,46 +277,80 @@ class _ContentEditorPageState extends State<ContentEditorPage> {
     );
   }
 
-  Widget _buildEditor() {
+  Widget _buildEditorPane() {
     return Card(
       margin: const EdgeInsets.all(8),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Title editor
-            TextField(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title header
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceVariant,
+              border: Border(
+                bottom: BorderSide(color: Theme.of(context).dividerColor),
+              ),
+            ),
+            child: TextField(
               controller: _titleController,
               decoration: const InputDecoration(
-                labelText: 'Title',
-                border: OutlineInputBorder(),
+                hintText: 'Post Title',
+                border: InputBorder.none,
+                isDense: true,
               ),
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 16),
+          ),
 
-            // Content editor
-            Expanded(
-              child: TextField(
-                controller: _contentController,
-                decoration: const InputDecoration(
-                  hintText: 'Write your content here (Markdown supported)...',
-                  border: OutlineInputBorder(),
-                  alignLabelWithHint: true,
-                ),
-                maxLines: null,
-                expands: true,
-                textAlignVertical: TextAlignVertical.top,
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 14),
+          // Editor content
+          Expanded(
+            child: _editorMode == EditorMode.wysiwyg
+                ? _buildWysiwygEditor()
+                : _buildMarkdownEditor(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWysiwygEditor() {
+    return WysiwygEditor(
+      initialMarkdown: _contentController.text,
+      onChanged: (markdown) {
+        // Update the controller without triggering rebuild
+        if (_contentController.text != markdown) {
+          _contentController.text = markdown;
+        }
+      },
+    );
+  }
+
+  Widget _buildMarkdownEditor() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          // Markdown toolbar
+          _buildMarkdownToolbar(),
+          const SizedBox(height: 8),
+
+          // Content editor
+          Expanded(
+            child: TextField(
+              controller: _contentController,
+              decoration: const InputDecoration(
+                hintText: 'Write your content here (Markdown supported)...',
+                border: OutlineInputBorder(),
+                alignLabelWithHint: true,
               ),
+              maxLines: null,
+              expands: true,
+              textAlignVertical: TextAlignVertical.top,
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 14),
             ),
-
-            // Toolbar
-            const SizedBox(height: 8),
-            _buildMarkdownToolbar(),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -281,11 +369,11 @@ class _ContentEditorPageState extends State<ContentEditorPage> {
                 bottom: BorderSide(color: Theme.of(context).dividerColor),
               ),
             ),
-            child: Row(
+            child: const Row(
               children: [
-                const Icon(Icons.preview),
-                const SizedBox(width: 8),
-                const Text('Preview', style: TextStyle(fontWeight: FontWeight.bold)),
+                Icon(Icons.preview),
+                SizedBox(width: 8),
+                Text('Preview', style: TextStyle(fontWeight: FontWeight.bold)),
               ],
             ),
           ),
@@ -309,6 +397,7 @@ class _ContentEditorPageState extends State<ContentEditorPage> {
       children: [
         _toolbarButton(Icons.format_bold, 'Bold', () => _insertMarkdown('**', '**')),
         _toolbarButton(Icons.format_italic, 'Italic', () => _insertMarkdown('*', '*')),
+        _toolbarButton(Icons.title, 'Heading', () => _insertMarkdown('## ', '')),
         _toolbarButton(Icons.format_list_bulleted, 'List', () => _insertMarkdown('- ', '')),
         _toolbarButton(Icons.format_list_numbered, 'Numbered', () => _insertMarkdown('1. ', '')),
         _toolbarButton(Icons.link, 'Link', () => _insertMarkdown('[', '](url)')),
