@@ -387,7 +387,7 @@ For detailed implementation information, see [IMPLEMENTATION_PLAN.md](./IMPLEMEN
 - [x] Add content browsing and editing (Phase 2 ✅)
 - [x] Add basic markdown editor with preview (Phase 2 ✅)
 - [x] Add frontmatter form editor (Phase 2 ✅)
-- [ ] Add WYSIWYG editor (flutter_quill integration) - Phase 3
+- [x] Add WYSIWYG editor (flutter_quill integration) - Phase 3 ✅
 - [ ] Add media library functionality - Phase 4
 - [ ] Implement real-time deployment logs - Phase 6
 - [ ] Add content preview feature
@@ -395,7 +395,15 @@ For detailed implementation information, see [IMPLEMENTATION_PLAN.md](./IMPLEMEN
 
 ## Version History
 
-- **v1.1.0** - Phase 2: Content Management (Current)
+- **v1.2.0** - Phase 3: WYSIWYG Editor (Current)
+  - Rich text WYSIWYG editor using flutter_quill
+  - Bidirectional markdown ↔ Quill Delta conversion
+  - Editor mode toggle (WYSIWYG vs Markdown)
+  - Full formatting toolbar (bold, italic, headers, lists, quotes, code, links)
+  - Seamless conversion between visual and markdown editing
+  - Enhanced UI with better visual hierarchy
+
+- **v1.1.0** - Phase 2: Content Management
   - Content file browser with search and filtering
   - Full-featured markdown editor with live preview
   - Frontmatter form editor (date, tags, categories, etc.)
