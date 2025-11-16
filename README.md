@@ -388,14 +388,24 @@ For detailed implementation information, see [IMPLEMENTATION_PLAN.md](./IMPLEMEN
 - [x] Add basic markdown editor with preview (Phase 2 ✅)
 - [x] Add frontmatter form editor (Phase 2 ✅)
 - [x] Add WYSIWYG editor (flutter_quill integration) - Phase 3 ✅
-- [ ] Add media library functionality - Phase 4
+- [x] Add media library functionality - Phase 4 ✅
 - [ ] Implement real-time deployment logs - Phase 6
 - [ ] Add content preview feature
 - [ ] Create user management system
 
 ## Version History
 
-- **v1.2.0** - Phase 3: WYSIWYG Editor (Current)
+- **v1.3.0** - Phase 4: Media Management (Current)
+  - Complete media library with grid layout
+  - Multiple image upload with file picker
+  - Image preview and detailed information panel
+  - Delete images with confirmation
+  - Image picker dialog for editor integration
+  - Insert images into content with one click
+  - Backend media API with multipart upload support
+  - Automatic Hugo-compatible paths (/images/...)
+
+- **v1.2.0** - Phase 3: WYSIWYG Editor
   - Rich text WYSIWYG editor using flutter_quill
   - Bidirectional markdown ↔ Quill Delta conversion
   - Editor mode toggle (WYSIWYG vs Markdown)
