@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 
 import 'services/api_service.dart';
 import 'providers/content_provider.dart';
+import 'providers/media_provider.dart';
 import 'screens/content_editor_page.dart';
+import 'screens/media_library_page.dart';
 
 void main() {
   runApp(const HugoCmsApp());
@@ -22,6 +24,9 @@ class HugoCmsApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(
           create: (_) => ContentProvider(apiService),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => MediaProvider(apiService),
         ),
       ],
       child: MaterialApp.router(
@@ -54,7 +59,7 @@ final GoRouter _router = GoRouter(
         GoRoute(
           path: 'media',
           builder: (BuildContext context, GoRouterState state) {
-            return const MediaLibraryScreen();
+            return const MediaLibraryPage();
           },
         ),
         GoRoute(
@@ -255,30 +260,6 @@ class AppDrawer extends StatelessWidget {
 }
 
 // Placeholder screens
-class MediaLibraryScreen extends StatelessWidget {
-  const MediaLibraryScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Media Library'),
-      ),
-      drawer: const AppDrawer(),
-      body: const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.photo_library, size: 64, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('Media Library - Coming in Phase 4'),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 

@@ -8,6 +8,7 @@ import 'package:dotenv/dotenv.dart';
 import 'routes/content_routes.dart';
 import 'routes/deploy_routes.dart';
 import 'routes/git_routes.dart';
+import 'routes/media_routes.dart';
 import 'middleware/logging_middleware.dart';
 
 void main() async {
@@ -30,6 +31,7 @@ void main() async {
   app.mount('/api/content', ContentRoutes(hugoSitePath).router);
   app.mount('/api/git', GitRoutes(hugoSitePath).router);
   app.mount('/api/deploy', DeployRoutes(hugoSitePath).router);
+  app.mount('/api/media', MediaRoutes(hugoSitePath).router);
 
   // Create middleware pipeline
   final handler = Pipeline()

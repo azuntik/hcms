@@ -3,10 +3,12 @@ import 'package:provider/provider.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import '../models/content_file.dart';
 import '../models/file_item.dart';
+import '../models/media_file.dart';
 import '../providers/content_provider.dart';
 import '../widgets/file_browser/file_list.dart';
 import '../widgets/editor/frontmatter_form.dart';
 import '../widgets/editor/wysiwyg_editor.dart';
+import '../widgets/editor/image_picker_dialog.dart';
 
 enum EditorMode { wysiwyg, markdown }
 
@@ -401,6 +403,7 @@ class _ContentEditorPageState extends State<ContentEditorPage> {
         _toolbarButton(Icons.format_list_bulleted, 'List', () => _insertMarkdown('- ', '')),
         _toolbarButton(Icons.format_list_numbered, 'Numbered', () => _insertMarkdown('1. ', '')),
         _toolbarButton(Icons.link, 'Link', () => _insertMarkdown('[', '](url)')),
+        _toolbarButton(Icons.image, 'Insert Image', _insertImage),
         _toolbarButton(Icons.code, 'Code', () => _insertMarkdown('`', '`')),
         _toolbarButton(Icons.format_quote, 'Quote', () => _insertMarkdown('> ', '')),
       ],
@@ -434,6 +437,39 @@ class _ContentEditorPageState extends State<ContentEditorPage> {
           offset: selection.start + before.length + selectedText.length,
         ),
       );
+    }
+  }
+
+  Future<void> _insertImage() async {
+    final result = await showDialog<MediaFile>(
+      context: context,
+      builder: (context) => const ImagePickerDialog(),
+    );
+
+    if (result != null && mounted) {
+      // Insert image markdown
+      final imageMarkdown = '![${result.filename}](${result.url})';
+
+      final text = _contentController.text;
+      final selection = _contentController.selection;
+
+      if (selection.isValid) {
+        final newText = text.replaceRange(
+          selection.start,
+          selection.end,
+          imageMarkdown,
+        );
+
+        _contentController.value = TextEditingValue(
+          text: newText,
+          selection: TextSelection.collapsed(
+            offset: selection.start + imageMarkdown.length,
+          ),
+        );
+      } else {
+        // Append to end if no selection
+        _contentController.text = '$text\n$imageMarkdown';
+      }
     }
   }
 }

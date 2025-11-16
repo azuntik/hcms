@@ -151,4 +151,49 @@ class ApiService {
       throw Exception('Failed to get deployment history: ${response.statusCode}');
     }
   }
+
+  // Media endpoints
+  Future<List<Map<String, dynamic>>> listMedia() async {
+    final response = await http.get(Uri.parse('$baseUrl/api/media'));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return (data['files'] as List).cast<Map<String, dynamic>>();
+    } else {
+      throw Exception('Failed to load media list: ${response.statusCode}');
+    }
+  }
+
+  Future<Map<String, dynamic>> uploadMedia(String filename, List<int> bytes) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/api/media/upload'),
+    );
+
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'file',
+        bytes,
+        filename: filename,
+      ),
+    );
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      throw Exception('Failed to upload media: ${response.statusCode}');
+    }
+  }
+
+  Future<void> deleteMedia(String filename) async {
+    final encodedFilename = Uri.encodeComponent(filename);
+    final response = await http.delete(Uri.parse('$baseUrl/api/media/$encodedFilename'));
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to delete media: ${response.statusCode}');
+    }
+  }
 }
